@@ -274,8 +274,8 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
     // Publish Detections in cartesian space (poses)
     pub_pose_detections->publish(msg_pose_detections);
 
-    if(estimate_pose != nullptr)
-        tf_broadcaster.sendTransform(tfs);
+    // if(estimate_pose != nullptr)
+    //     tf_broadcaster.sendTransform(tfs);
 
     apriltag_detections_destroy(detections);
 }
