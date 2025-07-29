@@ -195,8 +195,11 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         RCLCPP_WARN_STREAM(get_logger(), "The camera is not calibrated! Set 'pose_estimation_method' to \"\" (empty) to disable pose estimation and this warning.");
     }
 
+
     // convert to 8bit monochrome image
-    const cv::Mat img_uint8 = cv_bridge::toCvShare(msg_img, "mono8")->image;
+    cv::Mat img_raw = cv_bridge::toCvShare(msg_img)->image;
+    cv::Mat img_uint8;
+    cv::cvtColor(img_raw, img_uint8, cv::COLOR_BGR2GRAY);
 
     image_u8_t im{img_uint8.cols, img_uint8.rows, img_uint8.cols, img_uint8.data};
 
