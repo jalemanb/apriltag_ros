@@ -14,6 +14,10 @@
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <sensor_msgs/msg/image.hpp>
 #include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/msg/pose_array.hpp>
+#include <geometry_msgs/msg/pose.hpp>
+#include <tf2/LinearMath/Transform.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 // apriltag
 #include "tag_functions.hpp"
@@ -80,6 +84,8 @@ private:
 
     const image_transport::CameraSubscriber sub_cam;
     const rclcpp::Publisher<apriltag_msgs::msg::AprilTagDetectionArray>::SharedPtr pub_detections;
+    const rclcpp::Publisher<geometry_msgs::msg::PoseArray>::SharedPtr pub_pose_detections;
+
     tf2_ros::TransformBroadcaster tf_broadcaster;
 
     pose_estimation_f estimate_pose = nullptr;
@@ -105,6 +111,7 @@ AprilTagNode::AprilTagNode(const rclcpp::NodeOptions& options)
         declare_parameter("image_transport", "raw", descr({}, true)),
         rmw_qos_profile_sensor_data)),
     pub_detections(create_publisher<apriltag_msgs::msg::AprilTagDetectionArray>("detections", rclcpp::QoS(1))),
+    pub_pose_detections(create_publisher<geometry_msgs::msg::PoseArray>("pose_detections", rclcpp::QoS(1))),
     tf_broadcaster(this)
 {
     // read-only parameters
@@ -202,7 +209,11 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
         timeprofile_display(td->tp);
 
     apriltag_msgs::msg::AprilTagDetectionArray msg_detections;
+    geometry_msgs::msg::PoseArray msg_pose_detections;
+
     msg_detections.header = msg_img->header;
+
+    msg_pose_detections.header = msg_img->header;
 
     std::vector<geometry_msgs::msg::TransformStamped> tfs;
 
@@ -242,10 +253,26 @@ void AprilTagNode::onCamera(const sensor_msgs::msg::Image::ConstSharedPtr& msg_i
             const double size = tag_sizes.count(det->id) ? tag_sizes.at(det->id) : tag_edge_size;
             tf.transform = estimate_pose(det, intrinsics, size);
             tfs.push_back(tf);
+
+            // This is newly added
+
+            geometry_msgs::msg::Pose pose_msg;  // Convert to Pose
+            pose_msg.position.x = tf.transform.translation.x;
+            pose_msg.position.y = tf.transform.translation.y;
+            pose_msg.position.z = tf.transform.translation.z;
+            
+            pose_msg.orientation.x = tf.transform.rotation.x;
+            pose_msg.orientation.y = tf.transform.rotation.y;
+            pose_msg.orientation.z = tf.transform.rotation.z;
+            pose_msg.orientation.w = tf.transform.rotation.w;
+
+            msg_pose_detections.poses.push_back(pose_msg);
         }
     }
-
+    // Publish Detection in the image plane
     pub_detections->publish(msg_detections);
+    // Publish Detections in cartesian space (poses)
+    pub_pose_detections->publish(msg_pose_detections);
 
     if(estimate_pose != nullptr)
         tf_broadcaster.sendTransform(tfs);
